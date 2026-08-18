@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<modDesc descVersion="107"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://validation.gdn.giants-software.com/xml/fs25/modDesc.xsd">
+
+    <author>Robert Drygas / ChatGPT</author>
+    <version>1.0.0.0</version>
+
+    <title>
+        <en>No Drive-By Fill</en>
+        <pl>Bez zdalnego napełniania</pl>
+    </title>
+
+    <description>
+        <en><![CDATA[
+Disables proximity/"drive-by" filling of player-controlled sowing machines,
+planters and fertilizer/lime spreaders with SEEDS, solid FERTILIZER and LIME.
+
+Dry materials must be physically tipped into the machine, for example with
+a front-loader bucket or another discharge-capable vehicle.
+
+Liquid fill types are not changed.
+        ]]></en>
+
+        <pl><![CDATA[
+Wyłącza napełnianie z bliska ("zdalne") maszyn sterowanych przez gracza:
+siewników i planterów ziarnem oraz rozsiewaczy nawozem stałym i wapnem.
+
+Materiały sypkie trzeba fizycznie wsypać do zbiornika, np. łyżką ładowarki
+lub z innego pojazdu umożliwiającego wysypywanie.
+
+Napełnianie materiałami ciekłymi pozostaje bez zmian.
+        ]]></pl>
+    </description>
+
+    <multiplayer supported="false"/>
+
+    <iconFilename>mod_icon.dds</iconFilename>
+
+    <extraSourceFiles>
+        <sourceFile filename="scripts/NoDriveByFill.lua"/>
+    </extraSourceFiles>
+</modDesc>
