@@ -1,13 +1,18 @@
 -- FS25_NoDriveByFill
--- Version 1.0.1.0
---
+-- Version 1.0.2.0
+
 -- Blocks FillTrigger/proximity filling for player-controlled:
 -- - sowing machines / planters with SEEDS
 -- - fertilizer spreaders with FERTILIZER
 -- - lime spreaders with LIME
---
+
 -- Physical filling through normal discharge into a fill unit is not blocked.
 -- Liquid fill types are not affected.
+
+-- v1.0.2.0:
+-- - hides the proximity refill activatable ("R") for blocked dry fill types
+-- - prevents automatic cover opening caused by blocked fill triggers
+-- - keeps manual cover control intact
 
 NoDriveByFill = {}
 
@@ -34,6 +39,20 @@ function NoDriveByFill.registerOverwrittenFunctions(vehicleType)
         "setFillUnitIsFilling",
         NoDriveByFill.setFillUnitIsFilling
     )
+
+    SpecializationUtil.registerOverwrittenFunction(
+        vehicleType,
+        "updateFillUnitTriggers",
+        NoDriveByFill.updateFillUnitTriggers
+    )
+
+    -- registerOverwrittenFunction() simply does nothing if the vehicle type
+    -- does not have this function, so this is safe for machines without Cover.
+    SpecializationUtil.registerOverwrittenFunction(
+        vehicleType,
+        "setCoverState",
+        NoDriveByFill.setCoverState
+    )
 end
 
 function NoDriveByFill.registerEventListeners(vehicleType)
@@ -42,8 +61,10 @@ end
 
 function NoDriveByFill:onLoad(savegame)
     local spec = self[NoDriveByFill.SPEC_NAME]
+
     if spec ~= nil then
         spec.lastBlockedTrigger = nil
+        spec.fillActivatableSuppressed = false
     end
 end
 
@@ -53,6 +74,7 @@ function NoDriveByFill.isPlayerControlled(vehicle)
     end
 
     local rootVehicle = vehicle.rootVehicle
+
     if rootVehicle == nil and vehicle.getRootVehicle ~= nil then
         rootVehicle = vehicle:getRootVehicle()
     end
@@ -62,10 +84,12 @@ function NoDriveByFill.isPlayerControlled(vehicle)
     end
 
     local currentVehicle = g_localPlayer:getCurrentVehicle()
+
     if currentVehicle == nil or rootVehicle ~= currentVehicle then
         return false
     end
 
+    -- Do not interfere with an AI worker.
     if rootVehicle.getIsAIActive ~= nil and rootVehicle:getIsAIActive() then
         return false
     end
@@ -83,13 +107,22 @@ function NoDriveByFill.isBlockedFillType(fillTypeIndex)
         or fillTypeIndex == FillType.LIME
 end
 
+-- Returns the trigger which FillUnit currently treats as the preferred one.
+-- triggers[1] is deliberately checked first: updateFillUnitTriggers() sorts
+-- the list and raises onFillUnitTriggerChanged BEFORE assigning selectedTrigger,
+-- so selectedTrigger may briefly still point at the previous source.
 function NoDriveByFill.getSelectedTrigger(vehicle)
     local fillUnitSpec = vehicle ~= nil and vehicle.spec_fillUnit or nil
+
     if fillUnitSpec == nil or fillUnitSpec.fillTrigger == nil then
         return nil
     end
 
     local fillTrigger = fillUnitSpec.fillTrigger
+
+    if fillTrigger.triggers ~= nil and #fillTrigger.triggers > 0 then
+        return fillTrigger.triggers[1]
+    end
 
     if fillTrigger.selectedTrigger ~= nil then
         return fillTrigger.selectedTrigger
@@ -97,10 +130,6 @@ function NoDriveByFill.getSelectedTrigger(vehicle)
 
     if fillTrigger.currentTrigger ~= nil then
         return fillTrigger.currentTrigger
-    end
-
-    if fillTrigger.triggers ~= nil and #fillTrigger.triggers > 0 then
-        return fillTrigger.triggers[1]
     end
 
     return nil
@@ -122,6 +151,7 @@ function NoDriveByFill.shouldBlockTriggerFill(vehicle)
     end
 
     local fillTypeIndex, trigger = NoDriveByFill.getSelectedTriggerFillType(vehicle)
+
     if NoDriveByFill.isBlockedFillType(fillTypeIndex) then
         return true, fillTypeIndex, trigger
     end
@@ -129,7 +159,7 @@ function NoDriveByFill.shouldBlockTriggerFill(vehicle)
     return false, fillTypeIndex, trigger
 end
 
--- FillActivatable asks the vehicle whether a nearby load trigger may be activated.
+-- Keep the base permission check blocked as a first line of defence.
 function NoDriveByFill:getAllowLoadTriggerActivation(superFunc, rootVehicle)
     local block = NoDriveByFill.shouldBlockTriggerFill(self)
 
@@ -140,7 +170,7 @@ function NoDriveByFill:getAllowLoadTriggerActivation(superFunc, rootVehicle)
     return superFunc(self, rootVehicle)
 end
 
--- Additional guard against starting the FillTrigger filling path directly.
+-- Main filling guard.
 function NoDriveByFill:setFillUnitIsFilling(superFunc, isFilling, noEventSend)
     if isFilling then
         local block, fillTypeIndex, trigger = NoDriveByFill.shouldBlockTriggerFill(self)
@@ -166,10 +196,73 @@ function NoDriveByFill:setFillUnitIsFilling(superFunc, isFilling, noEventSend)
         end
     else
         local spec = self[NoDriveByFill.SPEC_NAME]
+
         if spec ~= nil then
             spec.lastBlockedTrigger = nil
         end
     end
 
     return superFunc(self, isFilling, noEventSend)
+end
+
+-- Hide the normal "R - refill" activatable while the preferred trigger
+-- contains one of our blocked dry fill types.
+--
+-- FillUnit itself adds its FillActivatable to activatableObjectsSystem when
+-- the first fill trigger appears and removes it when the last one disappears.
+-- We temporarily do the same in between, remembering our own suppression state
+-- so an allowed trigger can restore the action.
+function NoDriveByFill:updateFillUnitTriggers(superFunc)
+    superFunc(self)
+
+    local modSpec = self[NoDriveByFill.SPEC_NAME]
+    local fillUnitSpec = self.spec_fillUnit
+
+    if modSpec == nil
+        or fillUnitSpec == nil
+        or fillUnitSpec.fillTrigger == nil
+        or g_currentMission == nil
+        or g_currentMission.activatableObjectsSystem == nil then
+        return
+    end
+
+    local fillTrigger = fillUnitSpec.fillTrigger
+    local hasTriggers = fillTrigger.triggers ~= nil and #fillTrigger.triggers > 0
+    local block = hasTriggers and NoDriveByFill.shouldBlockTriggerFill(self)
+
+    if block then
+        if not modSpec.fillActivatableSuppressed then
+            g_currentMission.activatableObjectsSystem:removeActivatable(
+                fillTrigger.activatable
+            )
+
+            modSpec.fillActivatableSuppressed = true
+        end
+    elseif modSpec.fillActivatableSuppressed then
+        -- If triggers are still present, FillUnit itself will not re-add the
+        -- activatable because it only does that when the first trigger arrives.
+        if hasTriggers then
+            g_currentMission.activatableObjectsSystem:addActivatable(
+                fillTrigger.activatable
+            )
+        end
+
+        modSpec.fillActivatableSuppressed = false
+    end
+end
+
+-- Cover:autoReactToTrigger opens a cover by calling setCoverState(..., true).
+-- Block only that automatic opening while a blocked dry FillTrigger is the
+-- current source. Manual cover operation calls setCoverState without
+-- noEventSend=true, so the player remains fully in control.
+function NoDriveByFill:setCoverState(superFunc, state, noEventSend)
+    if noEventSend == true and state ~= nil and state > 0 then
+        local block = NoDriveByFill.shouldBlockTriggerFill(self)
+
+        if block then
+            return
+        end
+    end
+
+    return superFunc(self, state, noEventSend)
 end
