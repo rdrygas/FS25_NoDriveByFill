@@ -4,7 +4,7 @@
          xsi:noNamespaceSchemaLocation="https://validation.gdn.giants-software.com/xml/fs25/modDesc.xsd">
 
     <author>Robert Drygas / ChatGPT</author>
-    <version>1.0.2.0</version>
+    <version>1.1.0.0</version>
 
     <title>
         <en>No Drive-By Fill</en>
@@ -13,28 +13,37 @@
 
     <description>
         <en><![CDATA[
-Disables proximity / FillTrigger filling for player-controlled sowing machines,
-planters and fertilizer/lime spreaders when the material is SEEDS,
-solid FERTILIZER or LIME.
+Disables proximity / FillTrigger filling of dry and bulk materials for
+player-controlled vehicles with FillUnit.
+
+This includes sowing machines, fertilizer/lime/salt spreaders, trailers,
+semitrailers, auger wagons and other compatible equipment.
+
+Blocked materials include seeds, solid fertilizer, lime, road salt, grain,
+feed/forage and other BULK fill types. Liquid fill types remain unchanged.
 
 The proximity refill action is hidden and blocked, and blocked dry-material
-triggers no longer open the machine cover automatically.
+triggers do not open the vehicle cover automatically.
 
-The dry material must be physically discharged into the machine's fill unit.
-Manual cover operation remains available. Liquid filling is not changed.
+Dry material can still be physically discharged into the vehicle.
+Manual cover operation remains available.
         ]]></en>
 
         <pl><![CDATA[
-Wyłącza napełnianie z bliska przez FillTrigger dla maszyn sterowanych
-przez gracza: siewników i planterów ziarnem oraz rozsiewaczy
-nawozem stałym i wapnem.
+Wyłącza napełnianie z bliska przez FillTrigger materiałami sypkimi dla
+maszyn i pojazdów z FillUnit sterowanych przez gracza.
 
-Akcja zdalnego napełniania jest ukrywana i blokowana, a zablokowane źródła
-materiałów sypkich nie powodują już automatycznego otwierania pokrywy.
+Dotyczy m.in. siewników, rozsiewaczy nawozu, wapna i soli drogowej,
+przyczep, naczep, wozów przeładunkowych oraz innego zgodnego sprzętu.
 
-Materiał sypki musi zostać fizycznie wsypany do zbiornika maszyny.
-Ręczne sterowanie pokrywą pozostaje dostępne. Napełnianie materiałami
-ciekłymi pozostaje bez zmian.
+Blokowane są m.in. nasiona, nawóz stały, wapno, sól drogowa, zboża,
+pasze i inne materiały kategorii BULK. Materiały ciekłe pozostają bez zmian.
+
+Akcja zdalnego napełniania jest ukrywana i blokowana, a zablokowane
+źródła materiałów sypkich nie powodują automatycznego otwierania pokrywy.
+
+Materiał nadal można fizycznie wsypywać do pojazdu.
+Ręczne sterowanie pokrywą pozostaje dostępne.
         ]]></pl>
     </description>
 
