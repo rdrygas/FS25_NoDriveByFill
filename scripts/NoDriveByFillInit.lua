@@ -1,5 +1,9 @@
 -- Global specialization injector for FS25_NoDriveByFill.
--- The specialization is attached while vehicle types are being validated.
+-- Version 1.1.0.0
+--
+-- Attach the specialization to every vehicle type that has FillUnit.
+-- The actual decision whether to block filling is made later from the
+-- selected fillType and whether the vehicle is controlled by the player.
 
 local modName = g_currentModName
 local specName = modName .. ".noDriveByFill"
@@ -18,22 +22,20 @@ if not _G[guardName] then
             for typeName, typeEntry in pairs(vehicleTypes) do
                 local specializations = typeEntry.specializations
 
-                local hasFillUnit = SpecializationUtil.hasSpecialization(FillUnit, specializations)
-                local isSowingMachine = SpecializationUtil.hasSpecialization(SowingMachine, specializations)
-                local isSprayer = SpecializationUtil.hasSpecialization(Sprayer, specializations)
-                local alreadyAdded = SpecializationUtil.hasSpecialization(NoDriveByFill, specializations)
+                local hasFillUnit =
+                    SpecializationUtil.hasSpecialization(FillUnit, specializations)
 
-                if hasFillUnit
-                    and (isSowingMachine or isSprayer)
-                    and not alreadyAdded then
+                local alreadyAdded =
+                    SpecializationUtil.hasSpecialization(NoDriveByFill, specializations)
 
+                if hasFillUnit and not alreadyAdded then
                     g_vehicleTypeManager:addSpecialization(typeName, specName)
                     addedCount = addedCount + 1
                 end
             end
 
             Logging.info(
-                "[%s] Added specialization to %d sowing/spraying vehicle types.",
+                "[%s] Added specialization to %d FillUnit vehicle types.",
                 modName,
                 addedCount
             )
