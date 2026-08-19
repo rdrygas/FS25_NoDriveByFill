@@ -1,53 +1,36 @@
-# FS25 No Drive-By Fill
+# FS25_NoDriveByFill — v1.0.1.0
 
-Script mod for Farming Simulator 25.
+Corrected test version for Farming Simulator 25.
 
-## What it changes
+## Important change from 1.0.0.0
 
-For **player-controlled** equipment, the mod disables proximity / "drive-by"
-filling through `FillTrigger` for:
+Version 1.0.0.0 replaced functions in the global `FillUnit` table after
+vehicle types had already registered their own copies of these functions.
+As a result, the mod loaded without errors but did not actually intercept
+the filling functions used by seeders/spreaders.
 
-- `SEEDS` in sowing machines and planters;
-- `FERTILIZER` (solid fertilizer) in fertilizer equipment;
-- `LIME` in lime spreaders.
+Version 1.0.1.0 uses a real vehicle specialization and injects it into
+vehicle types during `TypeManager.validateTypes`.
 
-The machine must instead be filled by **physically discharging material into
-its open hopper**, e.g. with a front-loader bucket, trailer, auger or another
-discharge-capable source supported by the machine.
+## Blocked proximity filling
 
-## What it does not change
+For a player-controlled machine:
 
-- liquid fertilizer;
-- herbicide;
-- water;
-- fuel;
-- liquid manure / digestate;
-- other liquid fill types;
-- AI-controlled equipment.
+- `SEEDS` — sowing machines / planters
+- `FERTILIZER` — solid fertilizer spreaders
+- `LIME` — lime spreaders
 
-The mod intentionally does **not** overwrite `FillUnit:addFillUnitFillLevel()`.
-It only prevents activation/start of the nearby `FillTrigger` filling path, so
-normal physical discharge into the fill unit remains available.
+Liquid fill types remain unchanged.
 
-## Installation
+Physical discharge into the machine is not blocked because the mod does
+not overwrite `addFillUnitFillLevel()` or the normal discharge system.
 
-Copy `FS25_NoDriveByFill.zip` to:
+## Expected log entries
 
-`Documents/My Games/FarmingSimulator2025/mods`
+On game startup:
 
-Enable the mod for the savegame.
+`[FS25_NoDriveByFill] Added specialization to N sowing/spraying vehicle types.`
 
-## Suggested test
+When the blocked proximity refill path is actually attempted:
 
-1. Attach a seeder and drive next to a seed big bag.
-   The normal proximity filling action should not become usable.
-2. Lift seed material above the open hopper and discharge it.
-   The seeder should fill normally.
-3. Repeat with solid fertilizer and lime.
-4. Check a liquid-fertilizer sprayer.
-   Its normal filling behaviour should be unchanged.
-
-The game log should contain an entry beginning with:
-
-`[FS25_NoDriveByFill] Loaded.`
-
+`[FS25_NoDriveByFill] Blocked proximity filling: vehicle='...', fillType='...'`
