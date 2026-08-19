@@ -1,30 +1,105 @@
 -- FS25_NoDriveByFill
--- Version 1.0.2.0
-
--- Blocks FillTrigger/proximity filling for player-controlled:
--- - sowing machines / planters with SEEDS
--- - fertilizer spreaders with FERTILIZER
--- - lime spreaders with LIME
-
+-- Version 1.1.0.0
+--
+-- Blocks FillTrigger/proximity filling for player-controlled vehicles with
+-- FillUnit when the selected source contains dry/bulk material.
+--
+-- This includes:
+-- - sowing machines / planters
+-- - fertilizer and lime spreaders
+-- - road salt spreaders
+-- - trailers / semitrailers
+-- - auger wagons
+-- - other FillUnit-based vehicles
+--
 -- Physical filling through normal discharge into a fill unit is not blocked.
--- Liquid fill types are not affected.
-
--- v1.0.2.0:
--- - hides the proximity refill activatable ("R") for blocked dry fill types
--- - prevents automatic cover opening caused by blocked fill triggers
--- - keeps manual cover control intact
+-- Loading stations that use the game's separate loading-station mechanism are
+-- not intentionally changed.
+--
+-- Liquid fill types are explicitly left unchanged.
+--
+-- v1.1.0.0:
+-- - specialization is injected into ALL vehicle types with FillUnit
+-- - adds grain, feed, road salt and other dry/bulk fill types
+-- - supports BULK fillType category for base-game and modded materials
 
 NoDriveByFill = {}
 
 NoDriveByFill.MOD_NAME = g_currentModName or "FS25_NoDriveByFill"
 NoDriveByFill.SPEC_NAME = string.format("spec_%s.noDriveByFill", NoDriveByFill.MOD_NAME)
 
+-- Explicitly blocked dry/bulk fill types.
+--
+-- The BULK category is also checked later, so this list mainly guarantees
+-- support for important materials even if they are not assigned to BULK
+-- by a particular map or mod.
+NoDriveByFill.BLOCKED_FILL_TYPE_NAMES = {
+    -- Sowing / spreading
+    SEEDS = true,
+    FERTILIZER = true,
+    LIME = true,
+
+    -- Road salt: different game/mod data may expose either spelling
+    ROADSALT = true,
+    ROAD_SALT = true,
+
+    -- Grain / crops
+    WHEAT = true,
+    BARLEY = true,
+    OAT = true,
+    CANOLA = true,
+    SUNFLOWER = true,
+    SOYBEAN = true,
+    MAIZE = true,
+    SORGHUM = true,
+    POTATO = true,
+    SUGARBEET = true,
+    SUGARCANE = true,
+    CARROT = true,
+    PARSNIP = true,
+    BEETROOT = true,
+    PEAS = true,
+    GREENBEAN = true,
+    SPINACH = true,
+    RICE = true,
+    LONG_GRAIN_RICE = true,
+
+    -- Feed / forage
+    PIGFOOD = true,
+    FORAGE = true,
+    FORAGE_MIXING = true,
+    GRASS = true,
+    GRASS_WINDROW = true,
+    DRYGRASS = true,
+    DRYGRASS_WINDROW = true,
+    STRAW = true,
+    SILAGE = true,
+    CHAFF = true,
+    MINERAL_FEED = true,
+
+    -- Other common dry/bulk materials
+    WOODCHIPS = true,
+    MANURE = true
+}
+
+-- Explicit liquid allow-list.
+-- These must never be blocked even if a map/mod assigns them to a broad category.
+NoDriveByFill.LIQUID_FILL_TYPE_NAMES = {
+    WATER = true,
+    MILK = true,
+    LIQUIDFERTILIZER = true,
+    HERBICIDE = true,
+    LIQUIDMANURE = true,
+    DIGESTATE = true,
+    FUEL = true,
+    DIESEL = true,
+    DEF = true,
+    METHANE = true,
+    AIR = true
+}
+
 function NoDriveByFill.prerequisitesPresent(specializations)
     return SpecializationUtil.hasSpecialization(FillUnit, specializations)
-        and (
-            SpecializationUtil.hasSpecialization(SowingMachine, specializations)
-            or SpecializationUtil.hasSpecialization(Sprayer, specializations)
-        )
 end
 
 function NoDriveByFill.registerOverwrittenFunctions(vehicleType)
@@ -46,8 +121,8 @@ function NoDriveByFill.registerOverwrittenFunctions(vehicleType)
         NoDriveByFill.updateFillUnitTriggers
     )
 
-    -- registerOverwrittenFunction() simply does nothing if the vehicle type
-    -- does not have this function, so this is safe for machines without Cover.
+    -- Safe for vehicle types without Cover: registerOverwrittenFunction()
+    -- ignores functions which do not exist on the target type.
     SpecializationUtil.registerOverwrittenFunction(
         vehicleType,
         "setCoverState",
@@ -97,14 +172,66 @@ function NoDriveByFill.isPlayerControlled(vehicle)
     return true
 end
 
-function NoDriveByFill.isBlockedFillType(fillTypeIndex)
-    if fillTypeIndex == nil then
+function NoDriveByFill.getFillTypeName(fillTypeIndex)
+    if fillTypeIndex == nil
+        or g_fillTypeManager == nil
+        or g_fillTypeManager.getFillTypeNameByIndex == nil then
+        return nil
+    end
+
+    return g_fillTypeManager:getFillTypeNameByIndex(fillTypeIndex)
+end
+
+function NoDriveByFill.isLiquidFillType(fillTypeIndex)
+    if fillTypeIndex == nil or g_fillTypeManager == nil then
         return false
     end
 
-    return fillTypeIndex == FillType.SEEDS
-        or fillTypeIndex == FillType.FERTILIZER
-        or fillTypeIndex == FillType.LIME
+    local fillTypeName = NoDriveByFill.getFillTypeName(fillTypeIndex)
+
+    if fillTypeName ~= nil
+        and NoDriveByFill.LIQUID_FILL_TYPE_NAMES[fillTypeName] == true then
+        return true
+    end
+
+    -- Protect base-game and modded liquid materials by category as well.
+    if g_fillTypeManager.getIsFillTypeInCategory ~= nil then
+        if g_fillTypeManager:getIsFillTypeInCategory(fillTypeIndex, "LIQUID")
+            or g_fillTypeManager:getIsFillTypeInCategory(fillTypeIndex, "SLURRYTANK")
+            or g_fillTypeManager:getIsFillTypeInCategory(fillTypeIndex, "SPRAYER") then
+            return true
+        end
+    end
+
+    return false
+end
+
+function NoDriveByFill.isBlockedFillType(fillTypeIndex)
+    if fillTypeIndex == nil or g_fillTypeManager == nil then
+        return false
+    end
+
+    local fillTypeName = NoDriveByFill.getFillTypeName(fillTypeIndex)
+
+    -- Explicit blocked list has priority. This is important for e.g. solid
+    -- FERTILIZER if a broad category happens to overlap with liquid equipment.
+    if fillTypeName ~= nil
+        and NoDriveByFill.BLOCKED_FILL_TYPE_NAMES[fillTypeName] == true then
+        return true
+    end
+
+    -- Never block liquids.
+    if NoDriveByFill.isLiquidFillType(fillTypeIndex) then
+        return false
+    end
+
+    -- Automatically include other standard/modded bulk materials.
+    if g_fillTypeManager.getIsFillTypeInCategory ~= nil
+        and g_fillTypeManager:getIsFillTypeInCategory(fillTypeIndex, "BULK") then
+        return true
+    end
+
+    return false
 end
 
 -- Returns the trigger which FillUnit currently treats as the preferred one.
@@ -159,7 +286,7 @@ function NoDriveByFill.shouldBlockTriggerFill(vehicle)
     return false, fillTypeIndex, trigger
 end
 
--- Keep the base permission check blocked as a first line of defence.
+-- First line of defence: disallow activation of a nearby FillTrigger.
 function NoDriveByFill:getAllowLoadTriggerActivation(superFunc, rootVehicle)
     local block = NoDriveByFill.shouldBlockTriggerFill(self)
 
@@ -181,8 +308,8 @@ function NoDriveByFill:setFillUnitIsFilling(superFunc, isFilling, noEventSend)
             if spec ~= nil and spec.lastBlockedTrigger ~= trigger then
                 spec.lastBlockedTrigger = trigger
 
-                local fillType = g_fillTypeManager:getFillTypeByIndex(fillTypeIndex)
-                local fillTypeName = fillType ~= nil and fillType.name or tostring(fillTypeIndex)
+                local fillTypeName = NoDriveByFill.getFillTypeName(fillTypeIndex)
+                    or tostring(fillTypeIndex)
 
                 Logging.info(
                     "[%s] Blocked proximity filling: vehicle='%s', fillType='%s'",
@@ -206,12 +333,7 @@ function NoDriveByFill:setFillUnitIsFilling(superFunc, isFilling, noEventSend)
 end
 
 -- Hide the normal "R - refill" activatable while the preferred trigger
--- contains one of our blocked dry fill types.
---
--- FillUnit itself adds its FillActivatable to activatableObjectsSystem when
--- the first fill trigger appears and removes it when the last one disappears.
--- We temporarily do the same in between, remembering our own suppression state
--- so an allowed trigger can restore the action.
+-- contains a blocked dry/bulk fill type.
 function NoDriveByFill:updateFillUnitTriggers(superFunc)
     superFunc(self)
 
@@ -240,7 +362,7 @@ function NoDriveByFill:updateFillUnitTriggers(superFunc)
         end
     elseif modSpec.fillActivatableSuppressed then
         -- If triggers are still present, FillUnit itself will not re-add the
-        -- activatable because it only does that when the first trigger arrives.
+        -- activatable because it normally does that only for the first trigger.
         if hasTriggers then
             g_currentMission.activatableObjectsSystem:addActivatable(
                 fillTrigger.activatable
@@ -251,10 +373,8 @@ function NoDriveByFill:updateFillUnitTriggers(superFunc)
     end
 end
 
--- Cover:autoReactToTrigger opens a cover by calling setCoverState(..., true).
--- Block only that automatic opening while a blocked dry FillTrigger is the
--- current source. Manual cover operation calls setCoverState without
--- noEventSend=true, so the player remains fully in control.
+-- Prevent only automatic cover opening caused by a blocked FillTrigger.
+-- Manual cover operation remains available.
 function NoDriveByFill:setCoverState(superFunc, state, noEventSend)
     if noEventSend == true and state ~= nil and state > 0 then
         local block = NoDriveByFill.shouldBlockTriggerFill(self)
