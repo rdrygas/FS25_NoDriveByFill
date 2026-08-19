@@ -16,6 +16,7 @@ NoDriveByFill = {}
 
 NoDriveByFill.MOD_NAME = g_currentModName or "FS25_NoDriveByFill"
 
+-- Fill types that are blocked from proximity filling when the player controls the machine.
 NoDriveByFill.BLOCKED_FILL_TYPE_NAMES = {
     "SEEDS",
     "FERTILIZER",
@@ -102,6 +103,8 @@ function NoDriveByFill.getTriggerFillType(vehicle)
     return nil
 end
 
+-- Returns true if the vehicle is a target machine, is player-controlled, 
+--and is currently trying to fill from a blocked fill type.
 function NoDriveByFill.shouldBlockTriggerFill(vehicle)
     if not NoDriveByFill.isTargetMachine(vehicle) then
         return false
@@ -139,6 +142,7 @@ function NoDriveByFill.setFillUnitIsFilling(vehicle, superFunc, isFilling, noEve
     return superFunc(vehicle, isFilling, noEventSend)
 end
 
+-- Called when the map is loaded. This is where we wrap the FillUnit functions.
 function NoDriveByFill:loadMap(mapNode, mapFile)
     self.blockedFillTypes = {}
 
@@ -185,6 +189,7 @@ function NoDriveByFill:loadMap(mapNode, mapFile)
     )
 end
 
+-- The mod is being unloaded, so restore the original FillUnit functions if they have not been wrapped by another mod.
 function NoDriveByFill:deleteMap()
     -- Restore only if nobody wrapped these functions after this mod.
     -- This avoids accidentally removing another mod's later wrapper.
@@ -201,16 +206,21 @@ function NoDriveByFill:deleteMap()
     self.blockedFillTypes = {}
 end
 
+-- Update events are not used by this mod, but the method is required for the mod event listener.
 function NoDriveByFill:update(dt)
 end
 
+-- Draw events are not used by this mod, but the method is required for the mod event listener.
 function NoDriveByFill:draw()
 end
 
+-- Key events are not used by this mod, but the method is required for the mod event listener.
 function NoDriveByFill:keyEvent(unicode, sym, modifier, isDown)
 end
 
+-- Mouse events are not used by this mod, but the method is required for the mod event listener.
 function NoDriveByFill:mouseEvent(posX, posY, isDown, isUp, button)
 end
 
+-- Register the mod event listener so that the mod's methods are called at the appropriate times.
 addModEventListener(NoDriveByFill)
