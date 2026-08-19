@@ -13,37 +13,36 @@
 
     <description>
         <en><![CDATA[
-Disables proximity / FillTrigger filling of dry and bulk materials for
-player-controlled vehicles with FillUnit.
+Disables proximity filling of dry and bulk materials for vehicles controlled
+by the player.
 
-This includes sowing machines, fertilizer/lime/salt spreaders, trailers,
-semitrailers, auger wagons and other compatible equipment.
+The mod applies to equipment using FillUnit, including seeders, planters,
+fertilizer/lime/salt spreaders, trailers, semitrailers and auger wagons.
 
-Blocked materials include seeds, solid fertilizer, lime, road salt, grain,
-feed/forage and other BULK fill types. Liquid fill types remain unchanged.
+Nearby bags and pallets can no longer be used for automatic filling with
+seeds, solid fertilizer, lime, road salt, grain, feed and other BULK materials.
+The refill action is hidden and blocked, and the cover does not open
+automatically for a blocked source.
 
-The proximity refill action is hidden and blocked, and blocked dry-material
-triggers do not open the vehicle cover automatically.
-
-Dry material can still be physically discharged into the vehicle.
-Manual cover operation remains available.
+Physical loading into an open container remains available. Liquid filling
+is not changed.
         ]]></en>
 
         <pl><![CDATA[
-Wyłącza napełnianie z bliska przez FillTrigger materiałami sypkimi dla
-maszyn i pojazdów z FillUnit sterowanych przez gracza.
+Wyłącza napełnianie z bliska materiałami sypkimi dla pojazdów i maszyn
+sterowanych przez gracza.
 
-Dotyczy m.in. siewników, rozsiewaczy nawozu, wapna i soli drogowej,
-przyczep, naczep, wozów przeładunkowych oraz innego zgodnego sprzętu.
+Mod działa na sprzęcie korzystającym z FillUnit, m.in. siewnikach,
+planterach, rozsiewaczach nawozu, wapna i soli, przyczepach, naczepach
+oraz wozach przeładunkowych.
 
-Blokowane są m.in. nasiona, nawóz stały, wapno, sól drogowa, zboża,
-pasze i inne materiały kategorii BULK. Materiały ciekłe pozostają bez zmian.
+Worki i palety znajdujące się obok maszyny nie mogą już automatycznie
+napełniać jej nasionami, nawozem stałym, wapnem, solą drogową, ziarnem,
+paszami ani innymi materiałami kategorii BULK. Akcja napełniania jest
+ukrywana i blokowana, a pokrywa nie otwiera się automatycznie.
 
-Akcja zdalnego napełniania jest ukrywana i blokowana, a zablokowane
-źródła materiałów sypkich nie powodują automatycznego otwierania pokrywy.
-
-Materiał nadal można fizycznie wsypywać do pojazdu.
-Ręczne sterowanie pokrywą pozostaje dostępne.
+Fizyczne wsypywanie materiału do otwartego zbiornika pozostaje możliwe.
+Napełnianie cieczami pozostaje bez zmian.
         ]]></pl>
     </description>
 
