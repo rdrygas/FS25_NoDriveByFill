@@ -4,7 +4,7 @@
          xsi:noNamespaceSchemaLocation="https://validation.gdn.giants-software.com/xml/fs25/modDesc.xsd">
 
     <author>Robert Drygas / ChatGPT</author>
-    <version>1.0.0.0</version>
+    <version>1.0.1.0</version>
 
     <title>
         <en>No Drive-By Fill</en>
@@ -13,31 +13,35 @@
 
     <description>
         <en><![CDATA[
-Disables proximity/"drive-by" filling of player-controlled sowing machines,
-planters and fertilizer/lime spreaders with SEEDS, solid FERTILIZER and LIME.
+Disables proximity / FillTrigger filling for player-controlled sowing machines,
+planters and fertilizer/lime spreaders when the material is SEEDS,
+solid FERTILIZER or LIME.
 
-Dry materials must be physically tipped into the machine, for example with
-a front-loader bucket or another discharge-capable vehicle.
-
-Liquid fill types are not changed.
+The dry material must be physically discharged into the machine's fill unit.
+Liquid filling is not changed.
         ]]></en>
 
         <pl><![CDATA[
-Wyłącza napełnianie z bliska ("zdalne") maszyn sterowanych przez gracza:
-siewników i sadzarek ziarnem oraz rozsiewaczy nawozem stałym i wapnem.
+Wyłącza napełnianie z bliska przez FillTrigger dla maszyn sterowanych
+przez gracza: siewników i planterów ziarnem oraz rozsiewaczy
+nawozem stałym i wapnem.
 
-Materiały sypkie trzeba fizycznie wsypać do zbiornika, np. łyżką ładowarki
-lub z innego pojazdu umożliwiającego wysypywanie.
-
+Materiał sypki musi zostać fizycznie wsypany do zbiornika maszyny.
 Napełnianie materiałami ciekłymi pozostaje bez zmian.
         ]]></pl>
     </description>
 
     <multiplayer supported="false"/>
+	
+	<iconFilename>mod_icon.dds</iconFilename>
 
-    <iconFilename>mod_icon.dds</iconFilename>
+    <specializations>
+        <specialization name="noDriveByFill"
+                        className="NoDriveByFill"
+                        filename="scripts/NoDriveByFill.lua"/>
+    </specializations>
 
     <extraSourceFiles>
-        <sourceFile filename="scripts/NoDriveByFill.lua"/>
+        <sourceFile filename="scripts/NoDriveByFillInit.lua"/>
     </extraSourceFiles>
 </modDesc>
