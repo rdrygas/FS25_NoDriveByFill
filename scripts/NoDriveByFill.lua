@@ -1,57 +1,58 @@
 -- FS25_NoDriveByFill
+-- Version 1.0.1.0
 --
--- Blocks "remote" / proximity filling from FillTriggers for:
--- - seeds (SEEDS) in sowing machines / planters
--- - solid fertilizer (FERTILIZER) in sprayers/spreaders
--- - lime (LIME) in sprayers/spreaders
+-- Blocks FillTrigger/proximity filling for player-controlled:
+-- - sowing machines / planters with SEEDS
+-- - fertilizer spreaders with FERTILIZER
+-- - lime spreaders with LIME
 --
--- Direct physical filling (e.g. tipping material from a loader bucket,
--- trailer or other discharge source into an open hopper) is NOT blocked.
---
--- Liquid fill types are NOT affected.
---
--- Intended for player-controlled machines.
+-- Physical filling through normal discharge into a fill unit is not blocked.
+-- Liquid fill types are not affected.
 
 NoDriveByFill = {}
 
 NoDriveByFill.MOD_NAME = g_currentModName or "FS25_NoDriveByFill"
+NoDriveByFill.SPEC_NAME = string.format("spec_%s.noDriveByFill", NoDriveByFill.MOD_NAME)
 
--- Fill types that are blocked from proximity filling when the player controls the machine.
-NoDriveByFill.BLOCKED_FILL_TYPE_NAMES = {
-    "SEEDS",
-    "FERTILIZER",
-    "LIME"
-}
-
-NoDriveByFill.blockedFillTypes = {}
-
-NoDriveByFill.originalGetAllowLoadTriggerActivation = nil
-NoDriveByFill.originalSetFillUnitIsFilling = nil
-NoDriveByFill.wrappedGetAllowLoadTriggerActivation = nil
-NoDriveByFill.wrappedSetFillUnitIsFilling = nil
-
--- Returns true only for implements relevant to this mod.
--- SowingMachine covers seeders/planters.
--- Sprayer is also the base specialization used by fertilizer/lime spreaders.
-function NoDriveByFill.isTargetMachine(vehicle)
-    if vehicle == nil then
-        return false
-    end
-
-    return vehicle.spec_sowingMachine ~= nil
-        or vehicle.spec_sprayer ~= nil
+function NoDriveByFill.prerequisitesPresent(specializations)
+    return SpecializationUtil.hasSpecialization(FillUnit, specializations)
+        and (
+            SpecializationUtil.hasSpecialization(SowingMachine, specializations)
+            or SpecializationUtil.hasSpecialization(Sprayer, specializations)
+        )
 end
 
--- The base game itself uses g_localPlayer:getCurrentVehicle() when deciding
--- whether a FillUnit may activate a nearby loading trigger.
--- We keep the same concept and additionally reject AI-controlled root vehicles.
+function NoDriveByFill.registerOverwrittenFunctions(vehicleType)
+    SpecializationUtil.registerOverwrittenFunction(
+        vehicleType,
+        "getAllowLoadTriggerActivation",
+        NoDriveByFill.getAllowLoadTriggerActivation
+    )
+
+    SpecializationUtil.registerOverwrittenFunction(
+        vehicleType,
+        "setFillUnitIsFilling",
+        NoDriveByFill.setFillUnitIsFilling
+    )
+end
+
+function NoDriveByFill.registerEventListeners(vehicleType)
+    SpecializationUtil.registerEventListener(vehicleType, "onLoad", NoDriveByFill)
+end
+
+function NoDriveByFill:onLoad(savegame)
+    local spec = self[NoDriveByFill.SPEC_NAME]
+    if spec ~= nil then
+        spec.lastBlockedTrigger = nil
+    end
+end
+
 function NoDriveByFill.isPlayerControlled(vehicle)
     if vehicle == nil or g_localPlayer == nil then
         return false
     end
 
     local rootVehicle = vehicle.rootVehicle
-
     if rootVehicle == nil and vehicle.getRootVehicle ~= nil then
         rootVehicle = vehicle:getRootVehicle()
     end
@@ -61,7 +62,6 @@ function NoDriveByFill.isPlayerControlled(vehicle)
     end
 
     local currentVehicle = g_localPlayer:getCurrentVehicle()
-
     if currentVehicle == nil or rootVehicle ~= currentVehicle then
         return false
     end
@@ -73,154 +73,103 @@ function NoDriveByFill.isPlayerControlled(vehicle)
     return true
 end
 
--- Returns the fill type offered by the FillTrigger currently selected by FillUnit.
-function NoDriveByFill.getTriggerFillType(vehicle)
-    if vehicle == nil or vehicle.spec_fillUnit == nil then
+function NoDriveByFill.isBlockedFillType(fillTypeIndex)
+    if fillTypeIndex == nil then
+        return false
+    end
+
+    return fillTypeIndex == FillType.SEEDS
+        or fillTypeIndex == FillType.FERTILIZER
+        or fillTypeIndex == FillType.LIME
+end
+
+function NoDriveByFill.getSelectedTrigger(vehicle)
+    local fillUnitSpec = vehicle ~= nil and vehicle.spec_fillUnit or nil
+    if fillUnitSpec == nil or fillUnitSpec.fillTrigger == nil then
         return nil
     end
 
-    local fillTrigger = vehicle.spec_fillUnit.fillTrigger
+    local fillTrigger = fillUnitSpec.fillTrigger
 
-    if fillTrigger == nil then
-        return nil
+    if fillTrigger.selectedTrigger ~= nil then
+        return fillTrigger.selectedTrigger
     end
 
-    local trigger = fillTrigger.currentTrigger or fillTrigger.selectedTrigger
-
-    if trigger == nil then
-        -- Normally updateFillUnitTriggers() has already selected a trigger.
-        -- This fallback helps during the short interval immediately after
-        -- a trigger is added.
-        if fillTrigger.triggers ~= nil and #fillTrigger.triggers > 0 then
-            trigger = fillTrigger.triggers[1]
-        end
+    if fillTrigger.currentTrigger ~= nil then
+        return fillTrigger.currentTrigger
     end
 
-    if trigger ~= nil and trigger.getCurrentFillType ~= nil then
-        return trigger:getCurrentFillType()
+    if fillTrigger.triggers ~= nil and #fillTrigger.triggers > 0 then
+        return fillTrigger.triggers[1]
     end
 
     return nil
 end
 
--- Returns true if the vehicle is a target machine, is player-controlled, 
---and is currently trying to fill from a blocked fill type.
+function NoDriveByFill.getSelectedTriggerFillType(vehicle)
+    local trigger = NoDriveByFill.getSelectedTrigger(vehicle)
+
+    if trigger ~= nil and trigger.getCurrentFillType ~= nil then
+        return trigger:getCurrentFillType(), trigger
+    end
+
+    return nil, trigger
+end
+
 function NoDriveByFill.shouldBlockTriggerFill(vehicle)
-    if not NoDriveByFill.isTargetMachine(vehicle) then
-        return false
-    end
-
     if not NoDriveByFill.isPlayerControlled(vehicle) then
+        return false, nil, nil
+    end
+
+    local fillTypeIndex, trigger = NoDriveByFill.getSelectedTriggerFillType(vehicle)
+    if NoDriveByFill.isBlockedFillType(fillTypeIndex) then
+        return true, fillTypeIndex, trigger
+    end
+
+    return false, fillTypeIndex, trigger
+end
+
+-- FillActivatable asks the vehicle whether a nearby load trigger may be activated.
+function NoDriveByFill:getAllowLoadTriggerActivation(superFunc, rootVehicle)
+    local block = NoDriveByFill.shouldBlockTriggerFill(self)
+
+    if block then
         return false
     end
 
-    local fillTypeIndex = NoDriveByFill.getTriggerFillType(vehicle)
-
-    return fillTypeIndex ~= nil
-        and NoDriveByFill.blockedFillTypes[fillTypeIndex] == true
+    return superFunc(self, rootVehicle)
 end
 
--- First line of defence:
--- suppress activation of proximity/load triggers for the selected dry material.
-function NoDriveByFill.getAllowLoadTriggerActivation(vehicle, superFunc, rootVehicle)
-    if NoDriveByFill.shouldBlockTriggerFill(vehicle) then
-        return false
-    end
+-- Additional guard against starting the FillTrigger filling path directly.
+function NoDriveByFill:setFillUnitIsFilling(superFunc, isFilling, noEventSend)
+    if isFilling then
+        local block, fillTypeIndex, trigger = NoDriveByFill.shouldBlockTriggerFill(self)
 
-    return superFunc(vehicle, rootVehicle)
-end
+        if block then
+            local spec = self[NoDriveByFill.SPEC_NAME]
 
--- Second line of defence:
--- even if another script/input path tries to start trigger filling directly,
--- do not allow it for the blocked dry fill types while the player controls
--- the machine.
-function NoDriveByFill.setFillUnitIsFilling(vehicle, superFunc, isFilling, noEventSend)
-    if isFilling and NoDriveByFill.shouldBlockTriggerFill(vehicle) then
-        return
-    end
+            if spec ~= nil and spec.lastBlockedTrigger ~= trigger then
+                spec.lastBlockedTrigger = trigger
 
-    return superFunc(vehicle, isFilling, noEventSend)
-end
+                local fillType = g_fillTypeManager:getFillTypeByIndex(fillTypeIndex)
+                local fillTypeName = fillType ~= nil and fillType.name or tostring(fillTypeIndex)
 
--- Called when the map is loaded. This is where we wrap the FillUnit functions.
-function NoDriveByFill:loadMap(mapNode, mapFile)
-    self.blockedFillTypes = {}
-
-    if g_fillTypeManager ~= nil then
-        for _, fillTypeName in ipairs(self.BLOCKED_FILL_TYPE_NAMES) do
-            local fillTypeIndex = g_fillTypeManager:getFillTypeIndexByName(fillTypeName)
-
-            if fillTypeIndex ~= nil then
-                self.blockedFillTypes[fillTypeIndex] = true
-            else
-                Logging.warning(
-                    "[%s] Fill type '%s' was not found.",
-                    self.MOD_NAME,
+                Logging.info(
+                    "[%s] Blocked proximity filling: vehicle='%s', fillType='%s'",
+                    NoDriveByFill.MOD_NAME,
+                    self:getName(),
                     fillTypeName
                 )
             end
+
+            return
+        end
+    else
+        local spec = self[NoDriveByFill.SPEC_NAME]
+        if spec ~= nil then
+            spec.lastBlockedTrigger = nil
         end
     end
 
-    if FillUnit == nil then
-        Logging.error("[%s] FillUnit specialization is not available.", self.MOD_NAME)
-        return
-    end
-
-    self.originalGetAllowLoadTriggerActivation = FillUnit.getAllowLoadTriggerActivation
-    self.originalSetFillUnitIsFilling = FillUnit.setFillUnitIsFilling
-
-    self.wrappedGetAllowLoadTriggerActivation = Utils.overwrittenFunction(
-        self.originalGetAllowLoadTriggerActivation,
-        NoDriveByFill.getAllowLoadTriggerActivation
-    )
-
-    self.wrappedSetFillUnitIsFilling = Utils.overwrittenFunction(
-        self.originalSetFillUnitIsFilling,
-        NoDriveByFill.setFillUnitIsFilling
-    )
-
-    FillUnit.getAllowLoadTriggerActivation = self.wrappedGetAllowLoadTriggerActivation
-    FillUnit.setFillUnitIsFilling = self.wrappedSetFillUnitIsFilling
-
-    Logging.info(
-        "[%s] Loaded. Proximity filling blocked for SEEDS, FERTILIZER and LIME on player-controlled sowing/spreading equipment.",
-        self.MOD_NAME
-    )
+    return superFunc(self, isFilling, noEventSend)
 end
-
--- The mod is being unloaded, so restore the original FillUnit functions if they have not been wrapped by another mod.
-function NoDriveByFill:deleteMap()
-    -- Restore only if nobody wrapped these functions after this mod.
-    -- This avoids accidentally removing another mod's later wrapper.
-    if FillUnit ~= nil then
-        if FillUnit.getAllowLoadTriggerActivation == self.wrappedGetAllowLoadTriggerActivation then
-            FillUnit.getAllowLoadTriggerActivation = self.originalGetAllowLoadTriggerActivation
-        end
-
-        if FillUnit.setFillUnitIsFilling == self.wrappedSetFillUnitIsFilling then
-            FillUnit.setFillUnitIsFilling = self.originalSetFillUnitIsFilling
-        end
-    end
-
-    self.blockedFillTypes = {}
-end
-
--- Update events are not used by this mod, but the method is required for the mod event listener.
-function NoDriveByFill:update(dt)
-end
-
--- Draw events are not used by this mod, but the method is required for the mod event listener.
-function NoDriveByFill:draw()
-end
-
--- Key events are not used by this mod, but the method is required for the mod event listener.
-function NoDriveByFill:keyEvent(unicode, sym, modifier, isDown)
-end
-
--- Mouse events are not used by this mod, but the method is required for the mod event listener.
-function NoDriveByFill:mouseEvent(posX, posY, isDown, isUp, button)
-end
-
--- Register the mod event listener so that the mod's methods are called at the appropriate times.
-addModEventListener(NoDriveByFill)
