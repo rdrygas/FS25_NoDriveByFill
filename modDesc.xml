@@ -4,7 +4,7 @@
          xsi:noNamespaceSchemaLocation="https://validation.gdn.giants-software.com/xml/fs25/modDesc.xsd">
 
     <author>Robert Drygas / ChatGPT</author>
-    <version>1.0.1.0</version>
+    <version>1.0.2.0</version>
 
     <title>
         <en>No Drive-By Fill</en>
@@ -17,8 +17,11 @@ Disables proximity / FillTrigger filling for player-controlled sowing machines,
 planters and fertilizer/lime spreaders when the material is SEEDS,
 solid FERTILIZER or LIME.
 
+The proximity refill action is hidden and blocked, and blocked dry-material
+triggers no longer open the machine cover automatically.
+
 The dry material must be physically discharged into the machine's fill unit.
-Liquid filling is not changed.
+Manual cover operation remains available. Liquid filling is not changed.
         ]]></en>
 
         <pl><![CDATA[
@@ -26,8 +29,12 @@ Wyłącza napełnianie z bliska przez FillTrigger dla maszyn sterowanych
 przez gracza: siewników i planterów ziarnem oraz rozsiewaczy
 nawozem stałym i wapnem.
 
+Akcja zdalnego napełniania jest ukrywana i blokowana, a zablokowane źródła
+materiałów sypkich nie powodują już automatycznego otwierania pokrywy.
+
 Materiał sypki musi zostać fizycznie wsypany do zbiornika maszyny.
-Napełnianie materiałami ciekłymi pozostaje bez zmian.
+Ręczne sterowanie pokrywą pozostaje dostępne. Napełnianie materiałami
+ciekłymi pozostaje bez zmian.
         ]]></pl>
     </description>
 
