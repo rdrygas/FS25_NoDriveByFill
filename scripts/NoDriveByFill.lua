@@ -149,20 +149,28 @@ end
 
 -- Check if the vehicle is currently controlled by the player.
 function NoDriveByFill.isPlayerControlled(vehicle)
+    -- If the vehicle is nil or the local player is nil, we cannot determine control.
     if vehicle == nil or g_localPlayer == nil then
         return false
     end
 
+    -- Get the root vehicle for the current vehicle. 
+    -- This is important because the player may be controlling a vehicle 
+    -- that is attached to another vehicle (e.g. a tractor with a trailer). 
+    -- We want to check the root vehicle to determine if the player is controlling it.
     local rootVehicle = vehicle.rootVehicle
 
+    -- Some vehicles (e.g. auger wagons) do not have a rootVehicle property.
     if rootVehicle == nil and vehicle.getRootVehicle ~= nil then
         rootVehicle = vehicle:getRootVehicle()
     end
 
+    -- If the vehicle is not part of the player's controlled vehicle, do not block.
     if rootVehicle == nil then
         return false
     end
 
+    -- Only allow the player to block their own vehicle, not AI or other players.
     if g_localPlayer:getCurrentVehicle() ~= rootVehicle then
         return false
     end
